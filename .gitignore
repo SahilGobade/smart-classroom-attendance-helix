@@ -1,0 +1,15 @@
+
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+attendance.db
+*.db
+registered_faces/*
+!registered_faces/.gitkeep
+outputs/
+*.xlsx
+*.csv
+node_modules/
+.env
+.vscode/

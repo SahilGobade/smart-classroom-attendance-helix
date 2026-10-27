@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="refresh" content="10">
+    <title>Smart Classroom Attendance</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 28px; background: #101d2a; color: #f1f5f9; font-family: "Segoe UI", Arial, sans-serif; }
+        .container { max-width: 1180px; margin: auto; }
+        h1 { margin-bottom: 6px; }
+        .subtitle, .note, .session-note { color: #aab8c7; }
+        .subtitle { margin-top: 0; }
+        .controls, .student-form { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin: 22px 0; }
+        .start-button, .save-button { border: 0; border-radius: 8px; padding: 12px 18px; color: #10202d; cursor: pointer; font: inherit; font-weight: 700; }
+        .start-in, .save-button { background: #8ee4b0; }
+        .start-out { background: #f5c779; }
+        .export-button { background: #a9c9ff; }
+        .start-button:disabled { cursor: not-allowed; opacity: 0.55; }
+        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 24px 0; }
+        .card, .form-card { background: #1b2b3b; border: 1px solid #35485a; border-radius: 12px; padding: 18px; }
+        .number { font-size: 30px; font-weight: 700; margin-top: 7px; }
+        .muted { color: #aab8c7; }
+        .section { margin: 30px 0 12px; }
+        .attendance-windows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+        .window-title { margin: 0 0 12px; }
+        .in-title, .mark-in { color: #8ee4b0; }
+        .out-title, .mark-out { color: #f5c779; }
+        .mark-none { color: #aab8c7; }
+        .meets { color: #8ee4b0; font-weight: 700; }
+        .below { color: #ff9b9b; font-weight: 700; }
+        .table-wrap { overflow-x: auto; background: #1b2b3b; border: 1px solid #35485a; border-radius: 12px; }
+        table { width: 100%; border-collapse: collapse; min-width: 500px; }
+        th, td { text-align: left; padding: 14px; border-bottom: 1px solid #35485a; }
+        th { color: #b8c9d9; font-size: 13px; }
+        tr:last-child td { border-bottom: 0; }
+        .empty { padding: 22px; color: #aab8c7; }
+        input { min-width: 180px; border: 1px solid #52677b; border-radius: 7px; background: #101d2a; color: #f1f5f9; padding: 11px; font: inherit; }
+        .note { font-size: 13px; margin-top: 24px; }
+        @media (max-width: 800px) { .attendance-windows, .stats { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Smart Classroom Attendance</h1>
+    <form class="controls" method="get" action="{{ url_for('dashboard') }}">
+        <label class="muted" for="report-date">Attendance date</label>
+        <input id="report-date" name="date" type="date" value="{{ today }}" onchange="this.form.submit()">
+        <button class="save-button" type="submit">View Day</button>
+        <a href="{{ url_for('export_attendance', date=today) }}"><button class="start-button export-button" type="button">Export This Day to Excel</button></a>
+    </form>
+    <p class="subtitle">Teacher Dashboard &middot; Attendance for {{ today }}</p>
+
+    <div class="controls">
+        <form method="post" action="{{ url_for('start_attendance', entry_type='IN') }}">
+            <button class="start-button start-in" type="submit" {% if camera_running %}disabled{% endif %}>Start IN Attendance</button>
+        </form>
+        <form method="post" action="{{ url_for('start_attendance', entry_type='OUT') }}">
+            <button class="start-button start-out" type="submit" {% if camera_running %}disabled{% endif %}>Start OUT Attendance</button>
+        </form>
+        <span class="session-note">{% if camera_running %}A camera session is running. Press Q in its window before starting another.{% else %}Select IN or OUT before opening the camera.{% endif %}</span>
+    </div>
+
+    <div class="stats">
+        <div class="card"><div class="muted">Registered Students</div><div class="number">{{ student_count }}</div></div>
+        <div class="card"><div class="muted">Recorded Class Days</div><div class="number">{{ class_days }}</div></div>
+        <div class="card"><div class="muted">Meet 75% Criteria</div><div class="number">{{ criteria_count }}</div></div>
+        <div class="card"><div class="muted">Below 75% Criteria</div><div class="number">{{ below_criteria|length }}</div></div>
+    </div>
+
+    <h2 class="section">Overall Attendance Criteria</h2>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Student ID</th><th>Student Name</th><th>Days Present</th><th>Recorded Class Days</th><th>Attendance %</th><th>75% Criteria</th></tr></thead>
+            <tbody>
+            {% for student in attendance_summary %}
+            <tr>
+                <td>{{ student.student_id }}</td>
+                <td>{{ student.student_name }}</td>
+                <td>{{ student.days_present }}</td>
+                <td>{{ student.class_days }}</td>
+                <td>{{ student.attendance_percentage }}%</td>
+                <td class="{% if student.criteria_status == 'Meets 75%' %}meets{% else %}below{% endif %}">{{ student.criteria_status }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="empty">No attendance data is available yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if below_criteria %}
+    <h2 class="section">Students Requiring Attention</h2>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Student</th><th>Attendance %</th><th>Action</th></tr></thead>
+            <tbody>
+            {% for student in below_criteria %}
+            <tr>
+                <td>{{ student.student_name }} <span class="muted">({{ student.student_id }})</span></td>
+                <td class="below">{{ student.attendance_percentage }}%</td>
+                <td>Below the 75% requirement</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <h2 class="section">Student Attendance for {{ today }}</h2>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Student ID</th><th>Student Name</th><th>Latest Mark</th><th>Marked At</th></tr></thead>
+            <tbody>
+            {% for student in students %}
+            <tr>
+                <td>{{ student.student_id }}</td>
+                <td>{{ student.student_name }}</td>
+                <td class="{% if student.last_mark == 'IN' %}mark-in{% elif student.last_mark == 'OUT' %}mark-out{% else %}mark-none{% endif %}">{{ student.last_mark }}</td>
+                <td>{{ student.last_time }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="empty">No registered students or attendance records found.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <h2 class="section">Add or Update Student Name</h2>
+    <div class="form-card">
+        <form class="student-form" method="post" action="{{ url_for('save_student') }}">
+            <input name="student_id" placeholder="Student ID (example: S001)" required>
+            <input name="student_name" placeholder="Student name" required>
+            <button class="save-button" type="submit">Save Student Name</button>
+        </form>
+    </div>
+
+    <h2 class="section">Latest Marks by Attendance Type</h2>
+    <div class="attendance-windows">
+        <section>
+            <h3 class="window-title in-title">Latest IN Mark per Student</h3>
+            <div class="table-wrap"><table>
+                <thead><tr><th>Student</th><th>Marked At</th></tr></thead>
+                <tbody>{% for entry in in_entries %}
+                    <tr><td>{{ entry.student_name }} <span class="muted">({{ entry.student_id }})</span></td><td>{{ entry.event_time }}</td></tr>
+                {% else %}<tr><td colspan="2" class="empty">No IN marks for this date.</td></tr>{% endfor %}</tbody>
+            </table></div>
+        </section>
+        <section>
+            <h3 class="window-title out-title">Latest OUT Mark per Student</h3>
+            <div class="table-wrap"><table>
+                <thead><tr><th>Student</th><th>Marked At</th></tr></thead>
+                <tbody>{% for entry in out_entries %}
+                    <tr><td>{{ entry.student_name }} <span class="muted">({{ entry.student_id }})</span></td><td>{{ entry.event_time }}</td></tr>
+                {% else %}<tr><td colspan="2" class="empty">No OUT marks for this date.</td></tr>{% endfor %}</tbody>
+            </table></div>
+        </section>
+    </div>
+
+    <p class="note">Each student appears only once in the main table, using their most recent mark on the selected date. The Excel file includes this summary and the full event log for that date. The page refreshes every 10 seconds.</p>
+</div>
+</body>
+</html>
