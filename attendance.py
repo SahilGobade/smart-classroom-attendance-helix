@@ -1,5 +1,6 @@
 import argparse
 import sqlite3
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -11,9 +12,15 @@ ATTENDANCE_DATABASE = "attendance.db"
 CAMERA_INDEX = 0
 PROCESS_EVERY_N_FRAMES = 8
 MODEL_NAME = "ArcFace"
+STATUS_FILE = None
 
 
-def get_entry_type():
+def write_status(message):
+    if STATUS_FILE is not None:
+        Path(STATUS_FILE).write_text(message, encoding="utf-8")
+
+
+def get_settings():
     parser = argparse.ArgumentParser(
         description="Record one type of classroom attendance."
     )
@@ -21,7 +28,12 @@ def get_entry_type():
         "--mode", choices=("IN", "OUT"),
         help="Record only IN or only OUT attendance.",
     )
-    mode = parser.parse_args().mode
+    parser.add_argument(
+        "--status-file",
+        help="Optional file used by the dashboard to show camera status.",
+    )
+    options = parser.parse_args()
+    mode = options.mode
 
     while mode is None:
         mode = input("Choose attendance type (IN/OUT): ").strip().upper()
@@ -29,7 +41,7 @@ def get_entry_type():
             print("Please enter IN or OUT.")
             mode = None
 
-    return mode
+    return mode, options.status_file
 
 
 def check_opencv_gui():
@@ -51,7 +63,9 @@ def check_opencv_gui():
 
 
 def main():
-    entry_type = get_entry_type()
+    global STATUS_FILE
+    entry_type, STATUS_FILE = get_settings()
+    write_status(f"Starting {entry_type} attendance camera...")
     check_opencv_gui()
 
     photo_files = [
@@ -96,6 +110,7 @@ def main():
     print(f"{entry_type} attendance session started.")
     print("Each recognised student is recorded once in this session.")
     print("Press Q in the camera window to stop.")
+    write_status(f"{entry_type} camera is running. Press Q in the camera window to stop.")
 
     try:
         while True:
@@ -189,7 +204,12 @@ def main():
             pass
         connection.close()
         print(f"{entry_type} attendance session stopped.")
+        write_status(f"{entry_type} attendance session stopped.")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except BaseException as error:
+        write_status(f"Camera could not start: {type(error).__name__}: {error}")
+        raise

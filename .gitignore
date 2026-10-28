@@ -8,6 +8,7 @@ attendance.db
 registered_faces/*
 !registered_faces/.gitkeep
 outputs/
+logs/
 *.xlsx
 *.csv
 node_modules/

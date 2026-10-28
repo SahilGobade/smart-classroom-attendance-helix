@@ -16,12 +16,22 @@ PROJECT_DIR = Path(__file__).resolve().parent
 DB_FILE = PROJECT_DIR / "attendance.db"
 PHOTO_DIR = PROJECT_DIR / "registered_faces"
 ATTENDANCE_SCRIPT = PROJECT_DIR / "attendance.py"
+LOG_DIR = PROJECT_DIR / "logs"
+CAMERA_STATUS_FILE = LOG_DIR / "camera_status.txt"
+CAMERA_LOG_FILE = LOG_DIR / "camera_session.log"
 EXPORT_SCRIPT = PROJECT_DIR / "export_attendance.mjs"
 NODE_EXECUTABLE = (
     Path.home() / ".cache/codex-runtimes/codex-primary-runtime/"
     / "dependencies/node/bin/node.exe"
 )
 attendance_process = None
+attendance_log_handle = None
+
+
+def camera_status():
+    if CAMERA_STATUS_FILE.exists():
+        return CAMERA_STATUS_FILE.read_text(encoding="utf-8").strip()
+    return "No camera session has been started yet."
 
 
 def get_connection():
@@ -71,7 +81,7 @@ def get_dashboard_data(selected_date=None):
 
         event_rows = connection.execute(
             """
-            SELECT id, student_id, event_type, event_time
+            SELECT id, student_id, event_type, event_time, face_distance
             FROM attendance_events
             WHERE event_time LIKE ?
             ORDER BY event_time DESC, id DESC
@@ -108,11 +118,15 @@ def get_dashboard_data(selected_date=None):
     students = []
     for student_id in sorted(student_ids):
         latest = latest_by_student.get(student_id)
+        in_mark = latest_in.get(student_id)
+        out_mark = latest_out.get(student_id)
         students.append({
             "student_id": student_id,
             "student_name": names.get(student_id, "Not set"),
             "last_mark": latest["event_type"].upper() if latest else "Not marked",
             "last_time": latest["event_time"] if latest else "—",
+            "in_time": in_mark["event_time"] if in_mark else "Not marked",
+            "out_time": out_mark["event_time"] if out_mark else "Not marked",
         })
 
     def build_mark_list(event_map):
@@ -176,15 +190,19 @@ def get_dashboard_data(selected_date=None):
 
 @app.route("/")
 def dashboard():
-    global attendance_process
+    global attendance_process, attendance_log_handle
     if attendance_process is not None and attendance_process.poll() is not None:
         attendance_process = None
+        if attendance_log_handle is not None:
+            attendance_log_handle.close()
+            attendance_log_handle = None
 
     selected_date = valid_report_date(request.args.get("date"))
     return render_template(
         "dashboard.html",
         **get_dashboard_data(selected_date),
         camera_running=attendance_process is not None,
+        camera_status=camera_status(),
     )
 
 
@@ -252,16 +270,33 @@ def save_student():
 
 @app.post("/start/<entry_type>")
 def start_attendance(entry_type):
-    global attendance_process
+    global attendance_process, attendance_log_handle
     entry_type = entry_type.upper()
     if entry_type not in {"IN", "OUT"}:
         return "Unknown attendance type.", 400
 
-    if attendance_process is None or attendance_process.poll() is not None:
+    if attendance_process is not None and attendance_process.poll() is not None:
+        attendance_process = None
+        if attendance_log_handle is not None:
+            attendance_log_handle.close()
+            attendance_log_handle = None
+
+    if attendance_process is None:
+        LOG_DIR.mkdir(exist_ok=True)
+        CAMERA_STATUS_FILE.write_text(
+            f"Starting {entry_type} attendance camera...", encoding="utf-8"
+        )
+        attendance_log_handle = CAMERA_LOG_FILE.open("w", encoding="utf-8")
         attendance_process = subprocess.Popen(
-            [sys.executable, str(ATTENDANCE_SCRIPT), "--mode", entry_type],
+            [
+                sys.executable, "-u", str(ATTENDANCE_SCRIPT),
+                "--mode", entry_type,
+                "--status-file", str(CAMERA_STATUS_FILE),
+            ],
             cwd=PROJECT_DIR,
-            creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+            stdout=attendance_log_handle,
+            stderr=subprocess.STDOUT,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     return redirect(url_for("dashboard"))
 

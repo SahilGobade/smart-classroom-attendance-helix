@@ -30,23 +30,26 @@ summary.getRange("A3").format = { font: { name: "Arial", size: 10, italic: true,
 summary.getRange("A5:C5").values = [["Registered Students", "Marked IN", "Marked OUT"]];
 summary.getRange("A5:C5").format = headerFormat;
 summary.getRange("A6:C6").values = [[report.stats.studentCount, report.stats.inCount, report.stats.outCount]];
-summary.getRange("A8:D8").values = [["Student ID", "Student Name", "Latest Mark", "Marked At"]];
-summary.getRange("A8:D8").format = headerFormat;
+summary.getRange("A8:F8").values = [["Student ID", "Student Name", "IN Time", "OUT Time", "Latest Mark", "Latest Mark Time"]];
+summary.getRange("A8:F8").format = headerFormat;
 summary.getRange("A9").writeValues(report.students.map((student) => [
   student.student_id,
   student.student_name,
+  student.in_time,
+  student.out_time,
   student.last_mark,
   student.last_time,
 ]));
 if (report.students.length > 0) {
-  summary.tables.add(`A8:D${8 + report.students.length}`, true, "DailyAttendanceTable");
+  summary.tables.add(`A8:F${8 + report.students.length}`, true, "DailyAttendanceTable");
 }
-summary.getRange("A:D").format.font = { name: "Arial", size: 10 };
-summary.getRange("A:D").format.autofitColumns();
+summary.getRange("A:F").format.font = { name: "Arial", size: 10 };
+summary.getRange("A:F").format.autofitColumns();
 summary.getRange("A:A").format.columnWidth = 14;
 summary.getRange("B:B").format.columnWidth = 24;
-summary.getRange("C:C").format.columnWidth = 14;
-summary.getRange("D:D").format.columnWidth = 22;
+summary.getRange("C:D").format.columnWidth = 22;
+summary.getRange("E:E").format.columnWidth = 14;
+summary.getRange("F:F").format.columnWidth = 22;
 summary.freezePanes.freezeRows(8);
 
 criteria.showGridLines = false;
@@ -84,28 +87,30 @@ eventLog.getRange("A2").values = [["Attendance Event Log"]];
 eventLog.getRange("A2").format = titleFormat;
 eventLog.getRange("A3").values = [[`Date: ${report.date}`]];
 eventLog.getRange("A3").format = { font: { name: "Arial", size: 10, italic: true, color: "#4B5563" } };
-eventLog.getRange("A5:D5").values = [["Student ID", "Student Name", "Event", "Event Time"]];
-eventLog.getRange("A5:D5").format = headerFormat;
+eventLog.getRange("A5:E5").values = [["Student ID", "Student Name", "Mark Type", "Mark Time", "Face Distance"]];
+eventLog.getRange("A5:E5").format = headerFormat;
 if (report.events.length > 0) {
   eventLog.getRange("A6").writeValues(report.events.map((event) => [
     event.student_id,
     event.student_name,
     event.event_type,
     event.event_time,
+    event.face_distance ?? "",
   ]));
-  eventLog.tables.add(`A5:D${5 + report.events.length}`, true, "AttendanceEventsTable");
+  eventLog.tables.add(`A5:E${5 + report.events.length}`, true, "AttendanceEventsTable");
 } else {
-  eventLog.getRange("A6").values = [["No attendance records for this date.", "", "", ""]];
-  eventLog.getRange("A6:D6").format = {
+  eventLog.getRange("A6").values = [["No attendance records for this date.", "", "", "", ""]];
+  eventLog.getRange("A6:E6").format = {
     font: { name: "Arial", size: 10, italic: true, color: "#4B5563" },
   };
 }
-eventLog.getRange("A:D").format.font = { name: "Arial", size: 10 };
-eventLog.getRange("A:D").format.autofitColumns();
+eventLog.getRange("A:E").format.font = { name: "Arial", size: 10 };
+eventLog.getRange("A:E").format.autofitColumns();
 eventLog.getRange("A:A").format.columnWidth = 14;
 eventLog.getRange("B:B").format.columnWidth = 24;
 eventLog.getRange("C:C").format.columnWidth = 12;
 eventLog.getRange("D:D").format.columnWidth = 22;
+eventLog.getRange("E:E").format.columnWidth = 16;
 eventLog.freezePanes.freezeRows(5);
 
 workbook.recalculate();

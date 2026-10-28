@@ -13,7 +13,8 @@
         .subtitle, .note, .session-note { color: #aab8c7; }
         .subtitle { margin-top: 0; }
         .controls, .student-form { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin: 22px 0; }
-        .start-button, .save-button { border: 0; border-radius: 8px; padding: 12px 18px; color: #10202d; cursor: pointer; font: inherit; font-weight: 700; }
+        .start-button, .save-button, .export-link { border: 0; border-radius: 8px; padding: 12px 18px; color: #10202d; cursor: pointer; font: inherit; font-weight: 700; }
+        .export-link { display: inline-block; text-decoration: none; }
         .start-in, .save-button { background: #8ee4b0; }
         .start-out { background: #f5c779; }
         .export-button { background: #a9c9ff; }
@@ -48,7 +49,7 @@
         <label class="muted" for="report-date">Attendance date</label>
         <input id="report-date" name="date" type="date" value="{{ today }}" onchange="this.form.submit()">
         <button class="save-button" type="submit">View Day</button>
-        <a href="{{ url_for('export_attendance', date=today) }}"><button class="start-button export-button" type="button">Export This Day to Excel</button></a>
+        <a class="export-link export-button" href="{{ url_for('export_attendance', date=today) }}">Export This Day to Excel</a>
     </form>
     <p class="subtitle">Teacher Dashboard &middot; Attendance for {{ today }}</p>
 
@@ -59,7 +60,7 @@
         <form method="post" action="{{ url_for('start_attendance', entry_type='OUT') }}">
             <button class="start-button start-out" type="submit" {% if camera_running %}disabled{% endif %}>Start OUT Attendance</button>
         </form>
-        <span class="session-note">{% if camera_running %}A camera session is running. Press Q in its window before starting another.{% else %}Select IN or OUT before opening the camera.{% endif %}</span>
+        <span class="session-note">{{ camera_status }}</span>
     </div>
 
     <div class="stats">
@@ -111,17 +112,19 @@
     <h2 class="section">Student Attendance for {{ today }}</h2>
     <div class="table-wrap">
         <table>
-            <thead><tr><th>Student ID</th><th>Student Name</th><th>Latest Mark</th><th>Marked At</th></tr></thead>
+            <thead><tr><th>Student ID</th><th>Student Name</th><th>IN Time</th><th>OUT Time</th><th>Latest Mark</th><th>Marked At</th></tr></thead>
             <tbody>
             {% for student in students %}
             <tr>
                 <td>{{ student.student_id }}</td>
                 <td>{{ student.student_name }}</td>
+                <td>{{ student.in_time }}</td>
+                <td>{{ student.out_time }}</td>
                 <td class="{% if student.last_mark == 'IN' %}mark-in{% elif student.last_mark == 'OUT' %}mark-out{% else %}mark-none{% endif %}">{{ student.last_mark }}</td>
                 <td>{{ student.last_time }}</td>
             </tr>
             {% else %}
-            <tr><td colspan="4" class="empty">No registered students or attendance records found.</td></tr>
+            <tr><td colspan="6" class="empty">No registered students or attendance records found.</td></tr>
             {% endfor %}
             </tbody>
         </table>
